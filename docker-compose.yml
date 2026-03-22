@@ -1,0 +1,144 @@
+version: '3.8'
+
+services:
+  # ─── Infrastructure ───────────────────────────────────────────────────────
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - train-net
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    networks:
+      - train-net
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  mongodb:
+    image: mongo:7.0
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password123
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - train-net
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Microservices ────────────────────────────────────────────────────────
+
+  train-management:
+    build: ./services/train-management
+    container_name: train-management
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: 3001
+      MONGODB_URI: mongodb://admin:password123@mongodb:27017/traindb?authSource=admin
+      KAFKA_BROKER: kafka:29092
+      NODE_ENV: development
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - train-net
+    restart: unless-stopped
+
+  seat-availability:
+    build: ./services/seat-availability
+    container_name: seat-availability
+    ports:
+      - "3002:3002"
+    environment:
+      PORT: 3002
+      MONGODB_URI: mongodb://admin:password123@mongodb:27017/seatdb?authSource=admin
+      KAFKA_BROKER: kafka:29092
+      TRAIN_MANAGEMENT_URL: http://train-management:3001
+      NODE_ENV: development
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - train-net
+    restart: unless-stopped
+
+  ticket-booking:
+    build: ./services/ticket-booking
+    container_name: ticket-booking
+    ports:
+      - "3003:3003"
+    environment:
+      PORT: 3003
+      MONGODB_URI: mongodb://admin:password123@mongodb:27017/bookingdb?authSource=admin
+      KAFKA_BROKER: kafka:29092
+      SEAT_AVAILABILITY_URL: http://seat-availability:3002
+      TRAIN_MANAGEMENT_URL: http://train-management:3001
+      NODE_ENV: development
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - train-net
+    restart: unless-stopped
+
+  notification:
+    build: ./services/notification
+    container_name: notification
+    ports:
+      - "3004:3004"
+    environment:
+      PORT: 3004
+      MONGODB_URI: mongodb://admin:password123@mongodb:27017/notificationdb?authSource=admin
+      KAFKA_BROKER: kafka:29092
+      EMAIL_USER: ${EMAIL_USER:-noreply@trainbooking.com}
+      EMAIL_PASS: ${EMAIL_PASS:-changeme}
+      NODE_ENV: development
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - train-net
+    restart: unless-stopped
+
+volumes:
+  mongo_data:
+
+networks:
+  train-net:
+    driver: bridge

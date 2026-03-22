@@ -1,0 +1,112 @@
+name: Notification — CI/CD
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'services/notification/**'
+      - '.github/workflows/notification.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'services/notification/**'
+
+env:
+  SERVICE_NAME: notification
+  IMAGE_NAME: notification-service
+  CONTAINER_APP_NAME: notification-app
+  RESOURCE_GROUP: train-booking-rg
+  ACR_NAME: trainbookingregistry
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/notification
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: services/notification/package-lock.json
+
+      - run: npm ci
+
+      - run: npm test -- --passWithNoTests --coverage
+
+      - name: SonarCloud Scan (SAST)
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          projectBaseDir: services/notification
+
+  build-push:
+    name: Build & Push to ACR
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    outputs:
+      image-tag: ${{ steps.meta.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.ACR_NAME }}.azurecr.io
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=,format=short
+            type=raw,value=latest
+
+      - uses: docker/build-push-action@v5
+        with:
+          context: services/notification
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy to Azure Container Apps
+    runs-on: ubuntu-latest
+    needs: build-push
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+
+    steps:
+      - uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - uses: azure/container-apps-deploy-action@v1
+        with:
+          appSourcePath: ${{ github.workspace }}/services/notification
+          acrName: ${{ env.ACR_NAME }}
+          acrUsername: ${{ secrets.ACR_PASSWORD }}
+          acrPassword: ${{ secrets.ACR_PASSWORD }}
+          containerAppName: ${{ env.CONTAINER_APP_NAME }}
+          resourceGroup: ${{ env.RESOURCE_GROUP }}
+          imageToDeploy: ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ needs.build-push.outputs.image-tag }}
+          environmentVariables: >
+            PORT=3004
+            NODE_ENV=production
+            MONGODB_URI=secretref:mongodb-uri
+            KAFKA_BROKER=secretref:kafka-broker
+            EMAIL_USER=secretref:email-user
+            EMAIL_PASS=secretref:email-pass

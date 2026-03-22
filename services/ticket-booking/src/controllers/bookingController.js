@@ -1,0 +1,171 @@
+const axios = require('axios');
+const Booking = require('../models/Booking');
+const { publishEvent } = require('../config/kafka');
+
+const SEAT_SVC = process.env.SEAT_AVAILABILITY_URL || 'http://localhost:3002';
+const TRAIN_SVC = process.env.TRAIN_MANAGEMENT_URL  || 'http://localhost:3001';
+
+// GET /api/bookings
+exports.getAllBookings = async (req, res, next) => {
+  try {
+    const { email, status, page = 1, limit = 20 } = req.query;
+    const filter = {};
+    if (email) filter.contactEmail = email.toLowerCase();
+    if (status) filter.status = status.toUpperCase();
+
+    const [bookings, total] = await Promise.all([
+      Booking.find(filter)
+        .sort({ createdAt: -1 })
+        .limit(Number(limit))
+        .skip((Number(page) - 1) * Number(limit))
+        .lean(),
+      Booking.countDocuments(filter),
+    ]);
+
+    res.json({ success: true, total, page: Number(page), data: bookings });
+  } catch (err) { next(err); }
+};
+
+// GET /api/bookings/:id
+exports.getBookingById = async (req, res, next) => {
+  try {
+    const booking = await Booking.findById(req.params.id).lean();
+    if (!booking) return res.status(404).json({ success: false, message: 'Booking not found' });
+    res.json({ success: true, data: booking });
+  } catch (err) { next(err); }
+};
+
+// GET /api/bookings/ref/:reference
+exports.getBookingByReference = async (req, res, next) => {
+  try {
+    const booking = await Booking.findOne({ bookingReference: req.params.reference.toUpperCase() }).lean();
+    if (!booking) return res.status(404).json({ success: false, message: 'Booking not found' });
+    res.json({ success: true, data: booking });
+  } catch (err) { next(err); }
+};
+
+// POST /api/bookings  — main orchestration: validate → reserve seat → save booking → publish event
+exports.createBooking = async (req, res, next) => {
+  try {
+    const { scheduleId, trainId, seatClass, passengers, contactEmail, journeyDate, origin, destination } = req.body;
+    const seatCount = passengers.length;
+
+    // 1. Verify schedule exists via Train Management Service
+    let scheduleInfo;
+    try {
+      const { data } = await axios.get(`${TRAIN_SVC}/api/schedules/${scheduleId}`, { timeout: 5000 });
+      scheduleInfo = data.data;
+      if (scheduleInfo.status === 'CANCELLED') {
+        return res.status(400).json({ success: false, message: 'This schedule has been cancelled' });
+      }
+    } catch (err) {
+      return res.status(502).json({ success: false, message: 'Could not verify schedule with Train Management Service' });
+    }
+
+    // 2. Check and reserve seats via Seat Availability Service
+    let reservedSeats;
+    try {
+      const { data } = await axios.put(
+        `${SEAT_SVC}/api/seats/${scheduleId}/reserve`,
+        { bookingId: 'TEMP', seatClass, seatCount, passengerId: contactEmail },
+        { timeout: 5000 }
+      );
+      reservedSeats = data.data.reservedSeats;
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Seat reservation failed';
+      return res.status(err.response?.status || 502).json({ success: false, message: msg });
+    }
+
+    // 3. Calculate fare based on distance × pricePerKm × passengers
+    const classInfo = scheduleInfo.trainId?.classes?.find(c => c.className === seatClass);
+    const pricePerKm = classInfo?.pricePerKm || 2.5;
+    const totalAmount = parseFloat((scheduleInfo.distanceKm * pricePerKm * seatCount).toFixed(2));
+
+    // 4. Assign seat numbers to passengers
+    const passengersWithSeats = passengers.map((p, i) => ({
+      ...p,
+      seatNumber: reservedSeats[i]?.seatNumber,
+    }));
+
+    // 5. Create booking record
+    const booking = await Booking.create({
+      scheduleId,
+      trainId,
+      seatClass,
+      passengers: passengersWithSeats,
+      totalAmount,
+      contactEmail: contactEmail.toLowerCase(),
+      journeyDate,
+      origin,
+      destination,
+      status: 'CONFIRMED',
+    });
+
+    // 6. Update the temp reservation with real bookingId
+    try {
+      await axios.put(`${SEAT_SVC}/api/seats/${scheduleId}/reserve`, {
+        bookingId: booking._id.toString(),
+        seatClass,
+        seatCount: 0, // already reserved, just updating reference
+      }, { timeout: 3000 });
+    } catch (_) { /* non-critical */ }
+
+    // 7. Publish booking.created event → consumed by Notification Service
+    await publishEvent('booking.created', {
+      bookingId: booking._id.toString(),
+      bookingReference: booking.bookingReference,
+      contactEmail: booking.contactEmail,
+      passengers: booking.passengers.map(p => ({ name: p.name, email: p.email, seatNumber: p.seatNumber })),
+      origin: booking.origin,
+      destination: booking.destination,
+      journeyDate: booking.journeyDate,
+      seatClass: booking.seatClass,
+      totalAmount: booking.totalAmount,
+      scheduleId: booking.scheduleId,
+    });
+
+    res.status(201).json({ success: true, data: booking });
+  } catch (err) { next(err); }
+};
+
+// DELETE /api/bookings/:id  — cancel booking, release seats, publish event
+exports.cancelBooking = async (req, res, next) => {
+  try {
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) return res.status(404).json({ success: false, message: 'Booking not found' });
+
+    if (['CANCELLED', 'COMPLETED'].includes(booking.status)) {
+      return res.status(400).json({ success: false, message: `Booking is already ${booking.status.toLowerCase()}` });
+    }
+
+    // 1. Release seats
+    try {
+      await axios.put(`${SEAT_SVC}/api/seats/${booking.scheduleId}/release`, {
+        bookingId: booking._id.toString(),
+        seatClass: booking.seatClass,
+        seatCount: booking.passengers.length,
+      }, { timeout: 5000 });
+    } catch (err) {
+      console.warn('[ticket-booking] Seat release failed (non-fatal):', err.message);
+    }
+
+    // 2. Update booking status
+    booking.status = 'CANCELLED';
+    booking.cancelledAt = new Date();
+    booking.cancelReason = req.body.reason || 'User requested cancellation';
+    await booking.save();
+
+    // 3. Publish cancellation event → Notification + Seat Availability consumers
+    await publishEvent('booking.cancelled', {
+      bookingId: booking._id.toString(),
+      bookingReference: booking.bookingReference,
+      scheduleId: booking.scheduleId.toString(),
+      seatClass: booking.seatClass,
+      seatCount: booking.passengers.length,
+      contactEmail: booking.contactEmail,
+      totalAmount: booking.totalAmount,
+    });
+
+    res.json({ success: true, message: 'Booking cancelled', data: booking });
+  } catch (err) { next(err); }
+};
