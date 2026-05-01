@@ -15,8 +15,8 @@ env:
   SERVICE_NAME: train-management
   IMAGE_NAME: train-management-service
   CONTAINER_APP_NAME: train-management-app
-  RESOURCE_GROUP: train-booking-rg
-  ACR_NAME: trainbookingregistry
+  RESOURCE_GROUP: ctse-microservice
+  ACR_NAME: traintiketboker
 
 jobs:
   # ─── Job 1: Test ────────────────────────────────────────────────────────

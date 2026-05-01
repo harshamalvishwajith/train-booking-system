@@ -15,8 +15,8 @@ env:
   SERVICE_NAME: seat-availability
   IMAGE_NAME: seat-availability-service
   CONTAINER_APP_NAME: seat-availability-app
-  RESOURCE_GROUP: train-booking-rg
-  ACR_NAME: trainbookingregistry
+  RESOURCE_GROUP: ctse-microservice
+  ACR_NAME: traintiketboker
 
 jobs:
   test:

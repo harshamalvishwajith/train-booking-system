@@ -15,8 +15,8 @@ env:
   SERVICE_NAME: ticket-booking
   IMAGE_NAME: ticket-booking-service
   CONTAINER_APP_NAME: ticket-booking-app
-  RESOURCE_GROUP: train-booking-rg
-  ACR_NAME: trainbookingregistry
+  RESOURCE_GROUP: ctse-microservice
+  ACR_NAME: traintiketboker
 
 jobs:
   test:
