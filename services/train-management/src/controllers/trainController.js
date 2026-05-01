@@ -30,7 +30,8 @@ exports.getTrainById = async (req, res, next) => {
 // POST /api/trains
 exports.createTrain = async (req, res, next) => {
   try {
-    const train = await Train.create(req.body);
+    const { trainNumber, name, type, totalSeats, classes, amenities } = req.body;
+    const train = await Train.create({ trainNumber, name, type, totalSeats, classes, amenities });
     await publishEvent('train.created', { trainId: train._id, trainNumber: train.trainNumber });
     res.status(201).json({ success: true, data: train });
   } catch (err) { next(err); }
@@ -39,7 +40,16 @@ exports.createTrain = async (req, res, next) => {
 // PUT /api/trains/:id
 exports.updateTrain = async (req, res, next) => {
   try {
-    const train = await Train.findByIdAndUpdate(req.params.id, req.body, {
+    const { trainNumber, name, type, totalSeats, classes, amenities } = req.body;
+    const allowedUpdates = {};
+    if (trainNumber !== undefined) allowedUpdates.trainNumber = trainNumber;
+    if (name !== undefined) allowedUpdates.name = name;
+    if (type !== undefined) allowedUpdates.type = type;
+    if (totalSeats !== undefined) allowedUpdates.totalSeats = totalSeats;
+    if (classes !== undefined) allowedUpdates.classes = classes;
+    if (amenities !== undefined) allowedUpdates.amenities = amenities;
+
+    const train = await Train.findByIdAndUpdate(req.params.id, allowedUpdates, {
       new: true, runValidators: true,
     });
     if (!train) return res.status(404).json({ success: false, message: 'Train not found' });
