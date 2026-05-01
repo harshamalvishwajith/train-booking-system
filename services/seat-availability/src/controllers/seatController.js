@@ -1,12 +1,29 @@
+const mongoose = require('mongoose');
 const SeatInventory = require('../models/SeatInventory');
 const { publishEvent } = require('../config/kafka');
+
+function sanitizeObjectId(value, fieldName) {
+  const str = String(value);
+  if (!mongoose.Types.ObjectId.isValid(str)) {
+    const err = new Error(`Invalid ${fieldName}`);
+    err.status = 400;
+    throw err;
+  }
+  return str;
+}
+
+function sanitizeQueryString(value) {
+  if (typeof value !== 'string') return undefined;
+  return value;
+}
 
 // GET /api/seats/:scheduleId
 exports.getSeatAvailability = async (req, res, next) => {
   try {
+    const scheduleId = sanitizeObjectId(req.params.scheduleId, 'scheduleId');
     const inventory = await SeatInventory.findOne(
-      { scheduleId: req.params.scheduleId },
-      { reservedSeats: 0 }  // exclude seat details for public endpoint
+      { scheduleId },
+      { reservedSeats: 0 }
     ).lean();
 
     if (!inventory) {
@@ -17,10 +34,12 @@ exports.getSeatAvailability = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-// POST /api/seats/initialize  - called by ticket-booking after a schedule is created
+// POST /api/seats/initialize
 exports.initializeInventory = async (req, res, next) => {
   try {
-    const { scheduleId, trainId, totalSeats, classSummary } = req.body;
+    const { scheduleId: rawScheduleId, trainId: rawTrainId, totalSeats, classSummary } = req.body;
+    const scheduleId = sanitizeObjectId(rawScheduleId, 'scheduleId');
+    const trainId = sanitizeObjectId(rawTrainId, 'trainId');
 
     const existing = await SeatInventory.findOne({ scheduleId });
     if (existing) {
@@ -39,11 +58,16 @@ exports.initializeInventory = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-// PUT /api/seats/:scheduleId/reserve  - called by ticket-booking service
+// PUT /api/seats/:scheduleId/reserve
 exports.reserveSeat = async (req, res, next) => {
   try {
-    const { scheduleId } = req.params;
-    const { bookingId, seatClass, seatCount = 1, passengerId } = req.body;
+    const scheduleId = sanitizeObjectId(req.params.scheduleId, 'scheduleId');
+    const { bookingId, seatCount = 1, passengerId } = req.body;
+
+    const seatClass = sanitizeQueryString(req.body.seatClass);
+    if (!seatClass) {
+      return res.status(400).json({ success: false, message: 'seatClass is required' });
+    }
 
     const inventory = await SeatInventory.findOne({ scheduleId });
     if (!inventory) {
@@ -64,7 +88,7 @@ exports.reserveSeat = async (req, res, next) => {
     const newSeats = [];
     for (let i = 0; i < seatCount; i++) {
       const seatNumber = `${seatClass[0]}${String(classEntry.total - classEntry.available + i + 1).padStart(3, '0')}`;
-      newSeats.push({ seatNumber, seatClass, bookingId, passengerId });
+      newSeats.push({ seatNumber, seatClass, bookingId: String(bookingId), passengerId: String(passengerId) });
     }
 
     // Atomic update
@@ -87,7 +111,7 @@ exports.reserveSeat = async (req, res, next) => {
     // Publish seat.updated event
     await publishEvent('seat.updated', {
       scheduleId,
-      bookingId,
+      bookingId: String(bookingId),
       seatClass,
       seatsReserved: newSeats.map(s => s.seatNumber),
       availableSeats: updated.availableSeats,
@@ -106,8 +130,11 @@ exports.reserveSeat = async (req, res, next) => {
 // PUT /api/seats/:scheduleId/release
 exports.releaseSeat = async (req, res, next) => {
   try {
-    const { scheduleId } = req.params;
-    const { bookingId, seatClass, seatCount = 1 } = req.body;
+    const scheduleId = sanitizeObjectId(req.params.scheduleId, 'scheduleId');
+    const { seatCount = 1 } = req.body;
+
+    const seatClass = sanitizeQueryString(req.body.seatClass);
+    const bookingId = String(req.body.bookingId);
 
     const updated = await SeatInventory.findOneAndUpdate(
       { scheduleId, 'classSummary.className': seatClass },
@@ -134,10 +161,11 @@ exports.releaseSeat = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-// GET /api/seats/:scheduleId/detail  - returns full reserved list (internal/admin use)
+// GET /api/seats/:scheduleId/detail
 exports.getSeatDetail = async (req, res, next) => {
   try {
-    const inventory = await SeatInventory.findOne({ scheduleId: req.params.scheduleId }).lean();
+    const scheduleId = sanitizeObjectId(req.params.scheduleId, 'scheduleId');
+    const inventory = await SeatInventory.findOne({ scheduleId }).lean();
     if (!inventory) return res.status(404).json({ success: false, message: 'Not found' });
     res.json({ success: true, data: inventory });
   } catch (err) { next(err); }
