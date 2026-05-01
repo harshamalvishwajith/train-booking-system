@@ -18,7 +18,7 @@ function sanitizeObjectId(value, fieldName) {
 }
 
 /** Allowed booking statuses (whitelist) */
-const VALID_STATUSES = ['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED'];
+const VALID_STATUSES = new Set(['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED']);
 
 /**
  * Sanitise a query-string value to a plain string.
@@ -32,6 +32,16 @@ function sanitizeQueryString(value) {
 const SEAT_SVC = process.env.SEAT_AVAILABILITY_URL || 'http://localhost:3002';
 const TRAIN_SVC = process.env.TRAIN_MANAGEMENT_URL  || 'http://localhost:3001';
 
+/**
+ * Build a service URL without interpolating user data directly into a template string.
+ * Uses the URL API so that path segments are joined safely.
+ */
+function buildServiceUrl(baseUrl, ...pathSegments) {
+  const url = new URL(baseUrl);
+  url.pathname = ['', ...pathSegments.map(s => encodeURIComponent(String(s)))].join('/');
+  return url.toString();
+}
+
 // GET /api/bookings
 exports.getAllBookings = async (req, res, next) => {
   try {
@@ -43,13 +53,13 @@ exports.getAllBookings = async (req, res, next) => {
     const status = sanitizeQueryString(req.query.status);
     if (status) {
       const upper = status.toUpperCase();
-      if (VALID_STATUSES.includes(upper)) {
+      if (VALID_STATUSES.has(upper)) {
         filter.status = upper;
       }
     }
 
-    const page  = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
+    const page  = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 20));
 
     const [bookings, total] = await Promise.all([
       Booking.find(filter)
@@ -98,7 +108,7 @@ exports.createBooking = async (req, res, next) => {
     // 1. Verify schedule exists via Train Management Service
     let scheduleInfo;
     try {
-      const { data } = await axios.get(`${TRAIN_SVC}/api/schedules/${scheduleId}`, { timeout: 5000 });
+      const { data } = await axios.get(buildServiceUrl(TRAIN_SVC, 'api', 'schedules', scheduleId), { timeout: 5000 });
       scheduleInfo = data.data;
       if (scheduleInfo.status === 'CANCELLED') {
         return res.status(400).json({ success: false, message: 'This schedule has been cancelled' });
@@ -112,7 +122,7 @@ exports.createBooking = async (req, res, next) => {
     let reservedSeats;
     try {
       const { data } = await axios.put(
-        `${SEAT_SVC}/api/seats/${scheduleId}/reserve`,
+        buildServiceUrl(SEAT_SVC, 'api', 'seats', scheduleId, 'reserve'),
         { bookingId: 'TEMP', seatClass, seatCount, passengerId: contactEmail },
         { timeout: 5000 }
       );
@@ -149,7 +159,7 @@ exports.createBooking = async (req, res, next) => {
 
     // 6. Update the temp reservation with real bookingId
     try {
-      await axios.put(`${SEAT_SVC}/api/seats/${scheduleId}/reserve`, {
+      await axios.put(buildServiceUrl(SEAT_SVC, 'api', 'seats', scheduleId, 'reserve'), {
         bookingId: booking._id.toString(),
         seatClass,
         seatCount: 0, // already reserved, just updating reference
@@ -189,7 +199,7 @@ exports.cancelBooking = async (req, res, next) => {
 
     // 1. Release seats
     try {
-      await axios.put(`${SEAT_SVC}/api/seats/${booking.scheduleId}/release`, {
+      await axios.put(buildServiceUrl(SEAT_SVC, 'api', 'seats', booking.scheduleId, 'release'), {
         bookingId: booking._id.toString(),
         seatClass: booking.seatClass,
         seatCount: booking.passengers.length,
