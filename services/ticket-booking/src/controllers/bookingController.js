@@ -58,7 +58,8 @@ exports.createBooking = async (req, res, next) => {
       if (scheduleInfo.status === 'CANCELLED') {
         return res.status(400).json({ success: false, message: 'This schedule has been cancelled' });
       }
-    } catch (err) {
+    } catch (scheduleErr) {
+      console.error('[ticket-booking] Schedule verification failed:', scheduleErr.message);
       return res.status(502).json({ success: false, message: 'Could not verify schedule with Train Management Service' });
     }
 
@@ -71,9 +72,9 @@ exports.createBooking = async (req, res, next) => {
         { timeout: 5000 }
       );
       reservedSeats = data.data.reservedSeats;
-    } catch (err) {
-      const msg = err.response?.data?.message || 'Seat reservation failed';
-      return res.status(err.response?.status || 502).json({ success: false, message: msg });
+    } catch (seatErr) {
+      const msg = seatErr.response?.data?.message || 'Seat reservation failed';
+      return res.status(seatErr.response?.status || 502).json({ success: false, message: msg });
     }
 
     // 3. Calculate fare based on distance × pricePerKm × passengers
@@ -108,7 +109,9 @@ exports.createBooking = async (req, res, next) => {
         seatClass,
         seatCount: 0, // already reserved, just updating reference
       }, { timeout: 3000 });
-    } catch (_) { /* non-critical */ }
+    } catch (updateErr) {
+      console.warn('[ticket-booking] Seat reference update failed (non-critical):', updateErr.message);
+    }
 
     // 7. Publish booking.created event → consumed by Notification Service
     await publishEvent('booking.created', {
@@ -145,8 +148,8 @@ exports.cancelBooking = async (req, res, next) => {
         seatClass: booking.seatClass,
         seatCount: booking.passengers.length,
       }, { timeout: 5000 });
-    } catch (err) {
-      console.warn('[ticket-booking] Seat release failed (non-fatal):', err.message);
+    } catch (releaseErr) {
+      console.warn('[ticket-booking] Seat release failed (non-fatal):', releaseErr.message);
     }
 
     // 2. Update booking status
