@@ -1,4 +1,5 @@
-module.exports = (err, req, res, next) => {
+// eslint-disable-next-line no-unused-vars
+const errorHandler = (err, req, res, next) => {
   console.error(`[error] ${err.message}`);
 
   // Mongoose duplicate key
@@ -23,3 +24,4 @@ module.exports = (err, req, res, next) => {
     message: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message,
   });
 };
+module.exports = errorHandler;
