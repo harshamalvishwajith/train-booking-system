@@ -80,7 +80,7 @@ exports.createBooking = async (req, res, next) => {
     // 3. Calculate fare based on distance × pricePerKm × passengers
     const classInfo = scheduleInfo.trainId?.classes?.find(c => c.className === seatClass);
     const pricePerKm = classInfo?.pricePerKm || 2.5;
-    const totalAmount = parseFloat((scheduleInfo.distanceKm * pricePerKm * seatCount).toFixed(2));
+    const totalAmount = Number.parseFloat((scheduleInfo.distanceKm * pricePerKm * seatCount).toFixed(2));
 
     // 4. Assign seat numbers to passengers
     const passengersWithSeats = passengers.map((p, i) => ({
