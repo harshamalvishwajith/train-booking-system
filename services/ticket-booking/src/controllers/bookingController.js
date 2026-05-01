@@ -4,8 +4,8 @@ const Booking = require('../models/Booking');
 const { publishEvent } = require('../config/kafka');
 
 /**
- * Validate and sanitize a MongoDB ObjectId to prevent URL path injection.
- * Returns the hex string if valid, otherwise throws.
+ * Validate and sanitize a MongoDB ObjectId to prevent injection.
+ * Returns a proper ObjectId instance if valid, otherwise throws.
  */
 function sanitizeObjectId(value, fieldName) {
   const str = String(value);
@@ -14,17 +14,17 @@ function sanitizeObjectId(value, fieldName) {
     err.status = 400;
     throw err;
   }
-  return str;
+  return new mongoose.Types.ObjectId(str);
 }
 
 /** Allowed booking statuses (whitelist) */
 const VALID_STATUSES = new Set(['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED']);
 
 /**
- * Sanitise a query-string value to a plain string.
+ * Sanitise a value to a plain string.
  * Rejects objects/arrays that could carry NoSQL operators like { $gt: "" }.
  */
-function sanitizeQueryString(value) {
+function sanitizeString(value) {
   if (typeof value !== 'string') return undefined;
   return value;
 }
@@ -45,30 +45,29 @@ function buildServiceUrl(baseUrl, ...pathSegments) {
 // GET /api/bookings
 exports.getAllBookings = async (req, res, next) => {
   try {
-    const filter = {};
+    const query = Booking.find();
 
-    const email = sanitizeQueryString(req.query.email);
-    if (email) filter.contactEmail = email.toLowerCase();
+    const email = sanitizeString(req.query.email);
+    if (email) query.where('contactEmail').equals(email.toLowerCase());
 
-    const status = sanitizeQueryString(req.query.status);
+    const status = sanitizeString(req.query.status);
     if (status) {
       const upper = status.toUpperCase();
       if (VALID_STATUSES.has(upper)) {
-        filter.status = upper;
+        query.where('status').equals(upper);
       }
     }
 
     const page  = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
     const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 20));
 
-    const [bookings, total] = await Promise.all([
-      Booking.find(filter)
-        .sort({ createdAt: -1 })
-        .limit(limit)
-        .skip((page - 1) * limit)
-        .lean(),
-      Booking.countDocuments(filter),
-    ]);
+    const bookings = await query
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .skip((page - 1) * limit)
+      .lean();
+
+    const total = await Booking.find().merge(query).countDocuments();
 
     res.json({ success: true, total, page, data: bookings });
   } catch (err) { next(err); }
@@ -87,11 +86,13 @@ exports.getBookingById = async (req, res, next) => {
 // GET /api/bookings/ref/:reference
 exports.getBookingByReference = async (req, res, next) => {
   try {
-    const reference = sanitizeQueryString(req.params.reference);
+    const reference = sanitizeString(req.params.reference);
     if (!reference) {
       return res.status(400).json({ success: false, message: 'Invalid booking reference' });
     }
-    const booking = await Booking.findOne({ bookingReference: reference.toUpperCase() }).lean();
+    const booking = await Booking.findOne()
+      .where('bookingReference').equals(reference.toUpperCase())
+      .lean();
     if (!booking) return res.status(404).json({ success: false, message: 'Booking not found' });
     res.json({ success: true, data: booking });
   } catch (err) { next(err); }

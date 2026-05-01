@@ -8,10 +8,10 @@ function sanitizeObjectId(value, fieldName) {
     err.status = 400;
     throw err;
   }
-  return str;
+  return new mongoose.Types.ObjectId(str);
 }
 
-function sanitizeQueryString(value) {
+function sanitizeString(value) {
   if (typeof value !== 'string') return undefined;
   return value;
 }
@@ -22,33 +22,33 @@ const VALID_STATUSES = new Set(['SENT', 'FAILED', 'PENDING']);
 // GET /api/notifications
 exports.getAllNotifications = async (req, res, next) => {
   try {
-    const filter = {};
-    const email = sanitizeQueryString(req.query.email);
-    if (email) filter.recipientEmail = email.toLowerCase();
+    const query = Notification.find();
 
-    const type = sanitizeQueryString(req.query.type);
+    const email = sanitizeString(req.query.email);
+    if (email) query.where('recipientEmail').equals(email.toLowerCase());
+
+    const type = sanitizeString(req.query.type);
     if (type) {
       const upper = type.toUpperCase();
-      if (VALID_TYPES.has(upper)) filter.type = upper;
+      if (VALID_TYPES.has(upper)) query.where('type').equals(upper);
     }
 
-    const status = sanitizeQueryString(req.query.status);
+    const status = sanitizeString(req.query.status);
     if (status) {
       const upper = status.toUpperCase();
-      if (VALID_STATUSES.has(upper)) filter.status = upper;
+      if (VALID_STATUSES.has(upper)) query.where('status').equals(upper);
     }
 
     const page  = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
     const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 20));
 
-    const [notifications, total] = await Promise.all([
-      Notification.find(filter)
-        .sort({ createdAt: -1 })
-        .limit(limit)
-        .skip((page - 1) * limit)
-        .lean(),
-      Notification.countDocuments(filter),
-    ]);
+    const notifications = await query
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .skip((page - 1) * limit)
+      .lean();
+
+    const total = await Notification.find().merge(query).countDocuments();
 
     res.json({ success: true, total, page, data: notifications });
   } catch (err) { next(err); }
@@ -58,7 +58,8 @@ exports.getAllNotifications = async (req, res, next) => {
 exports.getByBookingId = async (req, res, next) => {
   try {
     const bookingId = sanitizeObjectId(req.params.bookingId, 'bookingId');
-    const notifications = await Notification.find({ bookingId })
+    const notifications = await Notification.find()
+      .where('bookingId').equals(bookingId.toString())
       .sort({ createdAt: -1 })
       .lean();
     res.json({ success: true, total: notifications.length, data: notifications });

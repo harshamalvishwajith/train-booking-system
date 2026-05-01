@@ -4,7 +4,7 @@ const { publishEvent } = require('../config/kafka');
 
 /**
  * Validate and sanitize a MongoDB ObjectId.
- * Returns the hex string if valid, otherwise throws a 400 error.
+ * Returns a proper ObjectId instance if valid, otherwise throws a 400 error.
  */
 function sanitizeObjectId(value, fieldName) {
   const str = String(value);
@@ -13,7 +13,7 @@ function sanitizeObjectId(value, fieldName) {
     err.status = 400;
     throw err;
   }
-  return str;
+  return new mongoose.Types.ObjectId(str);
 }
 
 /** Allowed train types (whitelist) */
@@ -23,7 +23,7 @@ const VALID_TYPES = new Set(['EXPRESS', 'INTERCITY', 'LOCAL', 'NIGHT']);
  * Sanitise a query-string value to a plain string.
  * Rejects objects/arrays that could carry NoSQL operators like { $gt: "" }.
  */
-function sanitizeQueryString(value) {
+function sanitizeString(value) {
   if (typeof value !== 'string') return undefined;
   return value;
 }
@@ -31,28 +31,27 @@ function sanitizeQueryString(value) {
 // GET /api/trains
 exports.getAllTrains = async (req, res, next) => {
   try {
-    const filter = {};
+    const isActive = sanitizeString(req.query.isActive);
+    const query = Train.find();
+    query.where('isActive').equals(isActive !== 'false');
 
-    const isActive = sanitizeQueryString(req.query.isActive);
-    filter.isActive = isActive !== 'false';
-
-    const type = sanitizeQueryString(req.query.type);
+    const type = sanitizeString(req.query.type);
     if (type) {
       const upper = type.toUpperCase();
       if (VALID_TYPES.has(upper)) {
-        filter.type = upper;
+        query.where('type').equals(upper);
       }
     }
 
     const page  = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
     const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 20));
 
-    const trains = await Train.find(filter)
+    const trains = await query
       .limit(limit)
       .skip((page - 1) * limit)
       .lean();
 
-    const total = await Train.countDocuments(filter);
+    const total = await Train.find().merge(query).countDocuments();
     res.json({ success: true, total, page, data: trains });
   } catch (err) { next(err); }
 };

@@ -9,10 +9,10 @@ function sanitizeObjectId(value, fieldName) {
     err.status = 400;
     throw err;
   }
-  return str;
+  return new mongoose.Types.ObjectId(str);
 }
 
-function sanitizeQueryString(value) {
+function sanitizeString(value) {
   if (typeof value !== 'string') return undefined;
   return value;
 }
@@ -22,15 +22,16 @@ const VALID_STATUSES = new Set(['SCHEDULED', 'DELAYED', 'CANCELLED', 'COMPLETED'
 // GET /api/schedules?origin=&destination=&date=
 exports.searchSchedules = async (req, res, next) => {
   try {
-    const filter = { status: { $ne: 'CANCELLED' } };
+    const query = Schedule.find();
+    query.where('status').ne('CANCELLED');
 
-    const origin = sanitizeQueryString(req.query.origin);
-    if (origin) filter.origin = { $eq: origin };
+    const origin = sanitizeString(req.query.origin);
+    if (origin) query.where('origin').equals(origin);
 
-    const destination = sanitizeQueryString(req.query.destination);
-    if (destination) filter.destination = { $eq: destination };
+    const destination = sanitizeString(req.query.destination);
+    if (destination) query.where('destination').equals(destination);
 
-    const date = sanitizeQueryString(req.query.date);
+    const date = sanitizeString(req.query.date);
     if (date) {
       const parsed = new Date(date);
       if (Number.isNaN(parsed.getTime())) {
@@ -38,10 +39,10 @@ exports.searchSchedules = async (req, res, next) => {
       }
       const start = new Date(parsed); start.setHours(0, 0, 0, 0);
       const end   = new Date(parsed); end.setHours(23, 59, 59, 999);
-      filter.journeyDate = { $gte: start, $lte: end };
+      query.where('journeyDate').gte(start).lte(end);
     }
 
-    const schedules = await Schedule.find(filter)
+    const schedules = await query
       .collation({ locale: 'en', strength: 2 })
       .populate('trainId', 'trainNumber name type classes')
       .lean();
