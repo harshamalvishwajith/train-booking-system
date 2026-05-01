@@ -5,7 +5,7 @@ const Train = require('../models/Train');
  * Escape special regex characters in a string to prevent ReDoS attacks.
  */
 function escapeRegExp(str) {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return str.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 }
 
 // GET /api/schedules?origin=&destination=&date=
