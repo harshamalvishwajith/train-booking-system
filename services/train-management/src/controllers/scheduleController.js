@@ -22,11 +22,14 @@ const VALID_STATUSES = new Set(['SCHEDULED', 'DELAYED', 'CANCELLED', 'COMPLETED'
 // GET /api/schedules?origin=&destination=&date=
 exports.searchSchedules = async (req, res, next) => {
   try {
-    const filter = {};
+    const filter = { status: { $ne: 'CANCELLED' } };
+
     const origin = sanitizeQueryString(req.query.origin);
-    if (origin) filter.origin = origin;
+    if (origin) filter.origin = { $eq: origin };
+
     const destination = sanitizeQueryString(req.query.destination);
-    if (destination) filter.destination = destination;
+    if (destination) filter.destination = { $eq: destination };
+
     const date = sanitizeQueryString(req.query.date);
     if (date) {
       const parsed = new Date(date);
@@ -37,7 +40,7 @@ exports.searchSchedules = async (req, res, next) => {
       const end   = new Date(parsed); end.setHours(23, 59, 59, 999);
       filter.journeyDate = { $gte: start, $lte: end };
     }
-    filter.status = { $ne: 'CANCELLED' };
+
     const schedules = await Schedule.find(filter)
       .collation({ locale: 'en', strength: 2 })
       .populate('trainId', 'trainNumber name type classes')
