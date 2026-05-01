@@ -1,6 +1,21 @@
 const axios = require('axios');
+const mongoose = require('mongoose');
 const Booking = require('../models/Booking');
 const { publishEvent } = require('../config/kafka');
+
+/**
+ * Validate and sanitize a MongoDB ObjectId to prevent URL path injection.
+ * Returns the hex string if valid, otherwise throws.
+ */
+function sanitizeObjectId(value, fieldName) {
+  const str = String(value);
+  if (!mongoose.Types.ObjectId.isValid(str)) {
+    const err = new Error(`Invalid ${fieldName}`);
+    err.status = 400;
+    throw err;
+  }
+  return str;
+}
 
 const SEAT_SVC = process.env.SEAT_AVAILABILITY_URL || 'http://localhost:3002';
 const TRAIN_SVC = process.env.TRAIN_MANAGEMENT_URL  || 'http://localhost:3001';
@@ -47,7 +62,9 @@ exports.getBookingByReference = async (req, res, next) => {
 // POST /api/bookings  — main orchestration: validate → reserve seat → save booking → publish event
 exports.createBooking = async (req, res, next) => {
   try {
-    const { scheduleId, trainId, seatClass, passengers, contactEmail, journeyDate, origin, destination } = req.body;
+    const { scheduleId: rawScheduleId, trainId: rawTrainId, seatClass, passengers, contactEmail, journeyDate, origin, destination } = req.body;
+    const scheduleId = sanitizeObjectId(rawScheduleId, 'scheduleId');
+    const trainId = sanitizeObjectId(rawTrainId, 'trainId');
     const seatCount = passengers.length;
 
     // 1. Verify schedule exists via Train Management Service
