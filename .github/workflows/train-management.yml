@@ -120,8 +120,8 @@ jobs:
           environmentVariables: >
             PORT=3001
             NODE_ENV=production
-            MONGODB_URI=secretref:mongodb-uri
-            KAFKA_BROKER=secretref:kafka-broker
+            MONGODB_URI=${{ secrets.MONGODB_URI }}
+            KAFKA_BROKER=${{ secrets.KAFKA_BROKER }}
 
       - name: Verify deployment
         run: |
