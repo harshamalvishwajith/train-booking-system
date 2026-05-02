@@ -3,6 +3,8 @@ const API_URL = process.env.NEXT_PUBLIC_TRAIN_API_URL || 'http://localhost:3001/
 export interface Train {
   id: string;
   name: string;
+  origin?: string;
+  destination?: string;
   scheduleId?: string;
   departureTime?: string;
   arrivalTime?: string;
