@@ -16,7 +16,7 @@ env:
   IMAGE_NAME: notification-service
   CONTAINER_APP_NAME: notification-app
   RESOURCE_GROUP: ctse-microservice
-  ACR_NAME: traintiketboker
+  ACR_NAME: sltraintiketboker
 
 jobs:
   test:
@@ -98,7 +98,7 @@ jobs:
         with:
           appSourcePath: ${{ github.workspace }}/services/notification
           acrName: ${{ env.ACR_NAME }}
-          acrUsername: ${{ secrets.ACR_PASSWORD }}
+          acrUsername: ${{ secrets.ACR_USERNAME }}
           acrPassword: ${{ secrets.ACR_PASSWORD }}
           containerAppName: ${{ env.CONTAINER_APP_NAME }}
           resourceGroup: ${{ env.RESOURCE_GROUP }}
