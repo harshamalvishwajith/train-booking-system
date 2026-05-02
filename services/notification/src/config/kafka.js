@@ -5,15 +5,6 @@ const { sendBookingConfirmation, sendCancellationNotice } = require('./mailer');
 const kafkaConfig = {
   clientId: 'notification-service',
   brokers: process.env.KAFKA_BROKER.split(','),
-
-  ssl: true,
-
-  sasl: {
-    mechanism: 'plain',
-    username: process.env.KAFKA_USERNAME,
-    password: process.env.KAFKA_PASSWORD,
-  },
-
   connectionTimeout: 10000,
   authenticationTimeout: 10000,
 };

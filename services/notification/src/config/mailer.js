@@ -2,11 +2,13 @@ const nodemailer = require('nodemailer');
 
 // Create a single reusable transporter
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.ethereal.email',
+  port: 587,
+  secure: false,
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS, // Use Gmail App Password, not your login password
-  },
+    user: 'annabelle87@ethereal.email',
+    pass: 'nJxxs9RfrRfWREfZT8'
+  }
 });
 
 // Verify connection on startup (non-fatal if email not configured)
