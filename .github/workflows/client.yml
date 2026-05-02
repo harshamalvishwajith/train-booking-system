@@ -33,7 +33,7 @@ jobs:
           app_location: "./client"
           app_build_command: "npm run build"
           output_location: "build"
-          production_branch: "main"
+          deployment_environment: "production"
         env:
           NEXT_PUBLIC_TRAIN_API_URL: ${{ secrets.NEXT_PUBLIC_TRAIN_API_URL }}
           NEXT_PUBLIC_SEAT_API_URL: ${{ secrets.NEXT_PUBLIC_SEAT_API_URL }}
