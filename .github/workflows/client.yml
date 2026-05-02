@@ -1,0 +1,52 @@
+name: Client - Azure Static Web Apps
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "client/**"
+      - ".github/workflows/client.yml"
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    branches:
+      - main
+    paths:
+      - "client/**"
+      - ".github/workflows/client.yml"
+
+jobs:
+  build_and_deploy:
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
+    runs-on: ubuntu-latest
+    name: Build and Deploy Client
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and Deploy
+        id: builddeploy
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: "upload"
+          app_location: "./client"
+          app_build_command: "npm run build"
+          output_location: "build"
+          production_branch: "main"
+        env:
+          NEXT_PUBLIC_TRAIN_API_URL: ${{ secrets.NEXT_PUBLIC_TRAIN_API_URL }}
+          NEXT_PUBLIC_SEAT_API_URL: ${{ secrets.NEXT_PUBLIC_SEAT_API_URL }}
+          NEXT_PUBLIC_BOOKING_API_URL: ${{ secrets.NEXT_PUBLIC_BOOKING_API_URL }}
+          NEXT_PUBLIC_NOTIFICATION_API_URL: ${{ secrets.NEXT_PUBLIC_NOTIFICATION_API_URL }}
+
+  close_pull_request:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    name: Close Client PR
+    steps:
+      - name: Close PR Deployment
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          action: "close"
