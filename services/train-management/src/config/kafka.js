@@ -2,10 +2,18 @@ const { Kafka } = require('kafkajs');
 
 const kafkaConfig = {
   clientId: 'train-management-service',
-  brokers: (process.env.KAFKA_BROKER || 'localhost:9092').split(','),
+  brokers: process.env.KAFKA_BROKER.split(','),
+
+  ssl: true,
+
+  sasl: {
+    mechanism: 'plain',
+    username: process.env.KAFKA_USERNAME,
+    password: process.env.KAFKA_PASSWORD,
+  },
+
   connectionTimeout: 10000,
   authenticationTimeout: 10000,
-  retry: { initialRetryTime: 300, retries: 5 },
 };
 
 if (process.env.KAFKA_USERNAME && process.env.KAFKA_PASSWORD) {
