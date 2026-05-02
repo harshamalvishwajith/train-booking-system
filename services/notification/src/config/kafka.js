@@ -2,11 +2,22 @@ const { Kafka } = require('kafkajs');
 const Notification = require('../models/Notification');
 const { sendBookingConfirmation, sendCancellationNotice } = require('./mailer');
 
-const kafka = new Kafka({
+const kafkaConfig = {
   clientId: 'notification-service',
   brokers: [(process.env.KAFKA_BROKER || 'localhost:9092')],
   retry: { initialRetryTime: 300, retries: 5 },
-});
+};
+
+if (process.env.KAFKA_USERNAME && process.env.KAFKA_PASSWORD) {
+  kafkaConfig.ssl = true;
+  kafkaConfig.sasl = {
+    mechanism: 'plain',
+    username: process.env.KAFKA_USERNAME,
+    password: process.env.KAFKA_PASSWORD,
+  };
+}
+
+const kafka = new Kafka(kafkaConfig);
 
 const consumer = kafka.consumer({ groupId: 'notification-group' });
 
@@ -60,15 +71,15 @@ async function connectKafka() {
 
         // Always persist notification record regardless of email success
         await Notification.create({
-          bookingId:         data.bookingId,
-          bookingReference:  data.bookingReference,
-          recipientEmail:    data.contactEmail,
+          bookingId: data.bookingId,
+          bookingReference: data.bookingReference,
+          recipientEmail: data.contactEmail,
           type,
           subject,
-          payload:           data,
-          status:            emailSent ? 'SENT' : 'FAILED',
-          errorMessage:      emailError,
-          sentAt:            emailSent ? new Date() : undefined,
+          payload: data,
+          status: emailSent ? 'SENT' : 'FAILED',
+          errorMessage: emailError,
+          sentAt: emailSent ? new Date() : undefined,
         });
       },
     });

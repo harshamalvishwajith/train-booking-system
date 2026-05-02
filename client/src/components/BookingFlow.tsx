@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { fetchSeats } from "@/lib/api/seats";
-import { createBooking, BookingPayload } from "@/lib/api/bookings";
+import { createBooking, BookingPayload, PassengerPayload } from "@/lib/api/bookings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,15 +18,26 @@ export default function BookingFlow({ scheduleId }: { scheduleId: string }) {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [seatData, setSeatData] = useState<any>(null);
-  
+
   // Form State
-  const [seatClass, setSeatClass] = useState("");
+  const [seatClass, setSeatClass] = useState<BookingPayload["seatClass"] | "">("");
   const [passengers, setPassengers] = useState("1");
+  const [passengerDetails, setPassengerDetails] = useState<PassengerPayload[]>([
+    { name: "", email: "", phone: "" }
+  ]);
   const [contactEmail, setContactEmail] = useState("");
   const [origin, setOrigin] = useState("Colombo Fort");
   const [destination, setDestination] = useState("Kandy");
   const [journeyDate, setJourneyDate] = useState(new Date().toISOString().split('T')[0]);
   const [bookingResponse, setBookingResponse] = useState<any>(null);
+
+  const seatClassOptions = [
+    { label: "First Class", value: "FIRST", description: "Premium seating with excellent views and legroom." },
+    { label: "Second Class", value: "SECOND", description: "Comfortable seating with great value for families." },
+    { label: "Third Class", value: "THIRD", description: "Affordable travel with essential comfort." },
+  ] as const;
+
+  const seatClassLabel = seatClassOptions.find(option => option.value === seatClass)?.label || "";
 
   useEffect(() => {
     loadSeats();
@@ -44,6 +55,26 @@ export default function BookingFlow({ scheduleId }: { scheduleId: string }) {
     }
   };
 
+  const updatePassengerCount = (value: string) => {
+    const count = Math.max(1, Number.parseInt(value, 10) || 1);
+    setPassengers(String(count));
+    setPassengerDetails(prev => {
+      const next = [...prev];
+      while (next.length < count) {
+        next.push({ name: "", email: "", phone: "" });
+      }
+      return next.slice(0, count);
+    });
+  };
+
+  const updatePassengerField = (index: number, field: keyof PassengerPayload, value: string) => {
+    setPassengerDetails(prev => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      return next;
+    });
+  };
+
   const handleBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!seatClass || !contactEmail) {
@@ -51,13 +82,26 @@ export default function BookingFlow({ scheduleId }: { scheduleId: string }) {
       return;
     }
 
+    if (!seatData?.trainId) {
+      toast.error("Train information is missing. Please refresh and try again.");
+      return;
+    }
+
+    const hasMissingPassenger = passengerDetails.some(passenger => (
+      !passenger.name.trim() || !passenger.email.trim() || !passenger.phone.trim()
+    ));
+    if (hasMissingPassenger) {
+      toast.error("Please fill in all passenger details.");
+      return;
+    }
+
     setSubmitting(true);
     try {
       const payload: BookingPayload = {
         scheduleId,
-        trainId: seatData?.trainId || "TRN-" + Math.floor(Math.random() * 1000), // Fallback
+        trainId: seatData.trainId,
         seatClass,
-        passengers: parseInt(passengers),
+        passengers: passengerDetails,
         contactEmail,
         journeyDate,
         origin,
@@ -93,7 +137,7 @@ export default function BookingFlow({ scheduleId }: { scheduleId: string }) {
         <div className="absolute left-0 top-1/2 w-full h-1 -translate-y-1/2 bg-muted -z-10 rounded-full">
           <div className="h-full bg-primary transition-all duration-300 rounded-full" style={{ width: `${(step - 1) * 50}%` }} />
         </div>
-        
+
         {[1, 2, 3].map((num) => (
           <div key={num} className={`flex h-10 w-10 items-center justify-center rounded-full border-2 bg-background font-semibold transition-colors ${step >= num ? 'border-primary text-primary' : 'border-muted text-muted-foreground'} ${step > num ? 'bg-primary text-primary-foreground' : ''}`}>
             {step > num ? <CheckCircle2 className="h-6 w-6" /> : num}
@@ -109,33 +153,33 @@ export default function BookingFlow({ scheduleId }: { scheduleId: string }) {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
-              {['First Class', 'Second Class', 'Third Class'].map((tier) => (
-                <div 
-                  key={tier}
-                  className={`border rounded-xl p-4 cursor-pointer transition-all ${seatClass === tier ? 'border-primary bg-primary/5 ring-2 ring-primary/20' : 'hover:border-border/80'}`}
-                  onClick={() => setSeatClass(tier)}
+              {seatClassOptions.map((tier) => (
+                <div
+                  key={tier.value}
+                  className={`border rounded-xl p-4 cursor-pointer transition-all ${seatClass === tier.value ? 'border-primary bg-primary/5 ring-2 ring-primary/20' : 'hover:border-border/80'}`}
+                  onClick={() => setSeatClass(tier.value)}
                 >
                   <div className="flex justify-between items-center mb-2">
-                    <h3 className="font-semibold">{tier}</h3>
+                    <h3 className="font-semibold">{tier.label}</h3>
                     <div className="text-sm font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded-full dark:bg-green-500/10 dark:text-green-400">Available</div>
                   </div>
-                  <p className="text-sm text-muted-foreground">Premium seating with excellent views and legroom.</p>
+                  <p className="text-sm text-muted-foreground">{tier.description}</p>
                 </div>
               ))}
             </div>
-            
+
             <div className="pt-4 border-t border-border/50">
-               <Label htmlFor="passengers">Number of Passengers</Label>
-               <Select value={passengers} onValueChange={(val) => setPassengers(val || "1")}>
-                 <SelectTrigger id="passengers" className="w-[180px] mt-2">
-                   <SelectValue placeholder="Select" />
-                 </SelectTrigger>
-                 <SelectContent>
-                   {[1, 2, 3, 4, 5].map(num => (
-                     <SelectItem key={num} value={num.toString()}>{num}</SelectItem>
-                   ))}
-                 </SelectContent>
-               </Select>
+              <Label htmlFor="passengers">Number of Passengers</Label>
+              <Select value={passengers} onValueChange={(val) => updatePassengerCount(val || "1")}>
+                <SelectTrigger id="passengers" className="w-[180px] mt-2">
+                  <SelectValue placeholder="Select" />
+                </SelectTrigger>
+                <SelectContent>
+                  {[1, 2, 3, 4, 5].map(num => (
+                    <SelectItem key={num} value={num.toString()}>{num}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </CardContent>
           <CardFooter className="flex justify-between">
@@ -155,14 +199,64 @@ export default function BookingFlow({ scheduleId }: { scheduleId: string }) {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Contact Email</Label>
-                <Input 
-                  id="email" 
-                  type="email" 
-                  placeholder="john@example.com" 
-                  required 
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="john@example.com"
+                  required
                   value={contactEmail}
-                  onChange={(e) => setContactEmail(e.target.value)}
+                  onChange={(e) => {
+                    const nextEmail = e.target.value;
+                    setContactEmail(nextEmail);
+                    setPassengerDetails(prev => {
+                      if (!prev[0] || prev[0].email.trim()) return prev;
+                      const next = [...prev];
+                      next[0] = { ...next[0], email: nextEmail };
+                      return next;
+                    });
+                  }}
                 />
+              </div>
+
+              <div className="space-y-4">
+                {passengerDetails.map((passenger, index) => (
+                  <div key={index} className="rounded-lg border border-border/60 p-4 space-y-3">
+                    <div className="text-sm font-semibold">Passenger {index + 1}</div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor={`passenger-name-${index}`}>Full Name</Label>
+                        <Input
+                          id={`passenger-name-${index}`}
+                          placeholder="Amal Perera"
+                          value={passenger.name}
+                          onChange={(e) => updatePassengerField(index, "name", e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor={`passenger-email-${index}`}>Email</Label>
+                        <Input
+                          id={`passenger-email-${index}`}
+                          type="email"
+                          placeholder="amal@example.com"
+                          value={passenger.email}
+                          onChange={(e) => updatePassengerField(index, "email", e.target.value)}
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`passenger-phone-${index}`}>Phone</Label>
+                      <Input
+                        id={`passenger-phone-${index}`}
+                        placeholder="+94771234567"
+                        value={passenger.phone}
+                        onChange={(e) => updatePassengerField(index, "phone", e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+                ))}
               </div>
 
               {/* These fields would normally be pre-filled from context, but we ask just in case */}
@@ -180,10 +274,10 @@ export default function BookingFlow({ scheduleId }: { scheduleId: string }) {
                 <Label htmlFor="date">Journey Date</Label>
                 <Input id="date" type="date" value={journeyDate} onChange={(e) => setJourneyDate(e.target.value)} required />
               </div>
-              
+
               <div className="bg-muted p-4 rounded-lg mt-6">
                 <h4 className="font-semibold mb-2">Booking Summary</h4>
-                <div className="flex justify-between text-sm mb-1"><span className="text-muted-foreground">Class</span> <span>{seatClass}</span></div>
+                <div className="flex justify-between text-sm mb-1"><span className="text-muted-foreground">Class</span> <span>{seatClassLabel || seatClass}</span></div>
                 <div className="flex justify-between text-sm"><span className="text-muted-foreground">Passengers</span> <span>{passengers}</span></div>
               </div>
             </CardContent>

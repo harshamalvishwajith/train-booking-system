@@ -1,10 +1,18 @@
 const API_URL = process.env.NEXT_PUBLIC_BOOKING_API_URL || 'http://localhost:3003/api';
 
+export interface PassengerPayload {
+  name: string;
+  email: string;
+  phone: string;
+  nationalId?: string;
+  age?: number;
+}
+
 export interface BookingPayload {
   scheduleId: string;
   trainId: string;
-  seatClass: string;
-  passengers: number;
+  seatClass: 'FIRST' | 'SECOND' | 'THIRD';
+  passengers: PassengerPayload[];
   contactEmail: string;
   journeyDate: string;
   origin: string;
