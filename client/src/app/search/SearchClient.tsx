@@ -36,7 +36,30 @@ export default function SearchClient() {
       try {
         const response = await fetchTrains(origin, destination, dateStr);
         const data = Array.isArray(response) ? response : (response?.data || response?.schedules || response?.trains || []);
-        if (isActive) setTrains(data || []);
+        const normalized = (data || []).map((schedule: any) => {
+          const scheduleId = schedule._id || schedule.id || schedule.scheduleId;
+          const trainInfo = schedule.trainId || {};
+          const trainNumber = trainInfo.trainNumber || trainInfo.id || schedule.trainNumber;
+          const classes = Array.isArray(trainInfo.classes) ? trainInfo.classes : [];
+          const lowestPricePerKm = classes.reduce((min: number | null, current: any) => {
+            if (typeof current?.pricePerKm !== "number") return min;
+            return min === null ? current.pricePerKm : Math.min(min, current.pricePerKm);
+          }, null);
+          const distanceKm = typeof schedule.distanceKm === "number" ? schedule.distanceKm : null;
+          const price = lowestPricePerKm !== null && distanceKm !== null
+            ? Math.round(lowestPricePerKm * distanceKm)
+            : undefined;
+
+          return {
+            scheduleId,
+            id: trainNumber || scheduleId,
+            name: trainInfo.name || schedule.name || "Train Service",
+            departureTime: schedule.departureTime,
+            arrivalTime: schedule.arrivalTime,
+            price,
+          } as Train;
+        });
+        if (isActive) setTrains(normalized);
       } catch (err) {
         console.error("Failed to load trains:", err);
         if (isActive) setError("Could not connect to the Train Management Service. Please try again later.");
@@ -144,9 +167,15 @@ export default function SearchClient() {
                         Starting from <span className="font-bold text-foreground ml-1">Rs. {train.price || "1000"}</span>
                       </div>
                     </div>
-                    <Link href={`/book?scheduleId=${encodeURIComponent(train.scheduleId || train.id)}`} className="w-full sm:w-auto">
-                      <Button className="w-full sm:w-auto">Select Seats</Button>
-                    </Link>
+                    {train.scheduleId ? (
+                      <Link href={`/book?scheduleId=${encodeURIComponent(train.scheduleId)}`} className="w-full sm:w-auto">
+                        <Button className="w-full sm:w-auto">Select Seats</Button>
+                      </Link>
+                    ) : (
+                      <Button className="w-full sm:w-auto" disabled>
+                        Schedule Unavailable
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>

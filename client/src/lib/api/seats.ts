@@ -6,7 +6,8 @@ export const fetchSeats = async (scheduleId: string) => {
     if (!response.ok) {
       throw new Error(`Failed to fetch seats for schedule ${scheduleId}`);
     }
-    return response.json();
+    const data = await response.json();
+    return data.data ?? data;
   } catch (error) {
     console.error('Error fetching seats:', error);
     throw error;
