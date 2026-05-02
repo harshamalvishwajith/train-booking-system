@@ -148,6 +148,41 @@ Provisions: Resource Group, Container Registry, Container Apps Environment, 4 Co
 
 ---
 
+## Client Deployment (Azure Static Web Apps)
+
+The client is configured for static export so it can be hosted on Azure Static Web Apps.
+
+### 1. Configure client environment variables
+
+Set these GitHub Secrets for the repository (used during the build step):
+
+| Secret | Example | Description |
+|---|---|---|
+| `NEXT_PUBLIC_TRAIN_API_URL` | `https://train-management.azurecontainerapps.io/api` | Train Management API base URL |
+| `NEXT_PUBLIC_SEAT_API_URL` | `https://seat-availability.azurecontainerapps.io/api` | Seat Availability API base URL |
+| `NEXT_PUBLIC_BOOKING_API_URL` | `https://ticket-booking.azurecontainerapps.io/api` | Ticket Booking API base URL |
+| `NEXT_PUBLIC_NOTIFICATION_API_URL` | `https://notification.azurecontainerapps.io/api` | Notification API base URL |
+
+### 2. Create Static Web App
+
+Create an Azure Static Web App connected to this repo and set the deployment token as:
+
+| Secret | Description |
+|---|---|
+| `AZURE_STATIC_WEB_APPS_API_TOKEN` | Deployment token from Azure Static Web Apps |
+
+### 3. Deploy
+
+Pushing to `main` with changes under `client/` triggers the workflow:
+
+```
+.github/workflows/client.yml
+```
+
+The build outputs to `client/out` and is uploaded to Azure Static Web Apps.
+
+---
+
 ## Security Measures
 
 - **Non-root containers** — dedicated `appuser` in every Dockerfile

@@ -220,7 +220,7 @@ export default function BookingFlow({ scheduleId }: { scheduleId: string }) {
           </CardContent>
           <CardFooter className="flex justify-center flex-col sm:flex-row gap-4 mt-4">
             <Button variant="outline" onClick={() => router.push('/')}>Return to Home</Button>
-            <Button onClick={() => router.push(`/manage/${bookingResponse?._id || bookingResponse?.bookingId || ''}`)}>Manage Booking</Button>
+            <Button onClick={() => router.push(`/manage?bookingId=${encodeURIComponent(bookingResponse?._id || bookingResponse?.bookingId || "")}`)}>Manage Booking</Button>
           </CardFooter>
         </Card>
       )}

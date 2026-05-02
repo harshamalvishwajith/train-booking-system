@@ -1,23 +1,34 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Search } from "lucide-react";
+import ManageClient from "./ManageClient";
 
 export default function ManageLookup() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const queryBookingId = searchParams.get("bookingId") || "";
   const [bookingId, setBookingId] = useState("");
 
   const handleLookup = (e: React.FormEvent) => {
     e.preventDefault();
     if (bookingId.trim()) {
-      router.push(`/manage/${bookingId.trim()}`);
+      router.push(`/manage?bookingId=${encodeURIComponent(bookingId.trim())}`);
     }
   };
+
+  if (queryBookingId) {
+    return (
+      <div className="container mx-auto px-4 py-12 max-w-5xl">
+        <ManageClient bookingId={queryBookingId} />
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-24 flex justify-center items-center min-h-[60vh]">

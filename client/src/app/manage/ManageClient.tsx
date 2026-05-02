@@ -19,7 +19,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Loader2, Ticket, Mail, Calendar, MapPin, AlertCircle, ArrowLeft } from "lucide-react";
+import { Loader2, Ticket, Mail, Calendar, AlertCircle, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
 export default function ManageClient({ bookingId }: { bookingId: string }) {
@@ -36,8 +36,6 @@ export default function ManageClient({ bookingId }: { bookingId: string }) {
   const loadNotification = async () => {
     try {
       const data = await fetchNotification(bookingId);
-      // Data might be an array of notifications (created, cancelled) or a single object.
-      // We take the creating notification if it's an array, or just use the object.
       const notif = Array.isArray(data) ? data[0] : data;
       setNotification(notif);
     } catch (err: any) {
@@ -53,8 +51,7 @@ export default function ManageClient({ bookingId }: { bookingId: string }) {
     try {
       await cancelBooking(bookingId);
       toast.success("Booking cancelled successfully!");
-      // Reload to reflect changes if necessary
-      router.push('/manage'); // redirect back to lookup or show cancelled state
+      router.push("/manage");
     } catch (error: any) {
       toast.error(error.message || "Failed to cancel booking. It may have already been cancelled.");
     } finally {
@@ -88,8 +85,8 @@ export default function ManageClient({ bookingId }: { bookingId: string }) {
     );
   }
 
-  const isCancelled = notification.type === 'BOOKING_CANCELLED' || (notification.message && notification.message.toLowerCase().includes('canc'));
-  const contactEmail = notification.email || 'N/A';
+  const isCancelled = notification.type === "BOOKING_CANCELLED" || (notification.message && notification.message.toLowerCase().includes("canc"));
+  const contactEmail = notification.email || "N/A";
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -97,9 +94,9 @@ export default function ManageClient({ bookingId }: { bookingId: string }) {
         <ArrowLeft className="mr-2 h-4 w-4" />
         Back to Search
       </Link>
-      
+
       <Card className="overflow-hidden">
-        <div className={`h-2 w-full ${isCancelled ? 'bg-destructive' : 'bg-green-500'}`} />
+        <div className={`h-2 w-full ${isCancelled ? "bg-destructive" : "bg-green-500"}`} />
         <CardHeader className="flex flex-row items-start justify-between">
           <div>
             <CardTitle className="text-2xl mb-1 flex items-center gap-2">
@@ -109,10 +106,10 @@ export default function ManageClient({ bookingId }: { bookingId: string }) {
             <CardDescription className="font-mono">{bookingId}</CardDescription>
           </div>
           <Badge variant={isCancelled ? "destructive" : "default"} className="text-sm px-3 py-1">
-            {isCancelled ? 'CANCELLED' : 'CONFIRMED'}
+            {isCancelled ? "CANCELLED" : "CONFIRMED"}
           </Badge>
         </CardHeader>
-        
+
         <CardContent className="space-y-6">
           <div className="bg-muted/40 rounded-xl p-5 border border-border/50">
             <div className="flex items-center gap-3 mb-4">
@@ -124,29 +121,29 @@ export default function ManageClient({ bookingId }: { bookingId: string }) {
                 <p className="font-medium text-foreground">{contactEmail}</p>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-3">
               <div className="bg-background p-2 rounded-md shadow-sm">
                 <Calendar className="h-4 w-4 text-muted-foreground" />
               </div>
               <div>
                 <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Notification Status</p>
-                <p className="font-medium text-foreground">{notification.status || 'SENT'}</p>
+                <p className="font-medium text-foreground">{notification.status || "SENT"}</p>
               </div>
             </div>
           </div>
-          
+
           <div className="text-sm text-muted-foreground px-1">
-             <p>This reservation includes all passengers and seat class upgrades selected during checkout. To change these details, please cancel and book again.</p>
+            <p>This reservation includes all passengers and seat class upgrades selected during checkout. To change these details, please cancel and book again.</p>
           </div>
         </CardContent>
-        
+
         {!isCancelled && (
           <CardFooter className="bg-muted/10 border-t p-6 flex justify-between items-center sm:flex-row flex-col gap-4">
             <p className="text-sm text-muted-foreground sm:max-w-xs text-center sm:text-left">
               Need to change your plans? You can cancel your ticket securely.
             </p>
-            
+
             <AlertDialog>
               <AlertDialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 bg-destructive text-destructive-foreground shadow sm hover:bg-destructive/90 h-9 px-4 py-2 w-full sm:w-auto">Cancel Booking</AlertDialogTrigger>
               <AlertDialogContent>
