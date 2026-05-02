@@ -108,7 +108,7 @@ jobs:
           environmentVariables: >
             PORT=3004
             NODE_ENV=production
-            MONGODB_URI=secretref:mongodb-uri
-            KAFKA_BROKER=secretref:kafka-broker
-            EMAIL_USER=secretref:email-user
-            EMAIL_PASS=secretref:email-pass
+            MONGODB_URI=${{ secrets.MONGODB_URI }}
+            KAFKA_BROKER=${{ secrets.KAFKA_BROKER }}
+            EMAIL_USER=${{ secrets.EMAIL_USER }}
+            EMAIL_PASS=${{ secrets.EMAIL_PASS }}

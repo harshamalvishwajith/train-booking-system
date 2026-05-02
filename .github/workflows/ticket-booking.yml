@@ -108,7 +108,7 @@ jobs:
           environmentVariables: >
             PORT=3003
             NODE_ENV=production
-            MONGODB_URI=secretref:mongodb-uri
-            KAFKA_BROKER=secretref:kafka-broker
-            SEAT_AVAILABILITY_URL=secretref:seat-availability-url
-            TRAIN_MANAGEMENT_URL=secretref:train-management-url
+            MONGODB_URI=${{ secrets.MONGODB_URI }}
+            KAFKA_BROKER=${{ secrets.KAFKA_BROKER }}
+            SEAT_AVAILABILITY_URL=${{ secrets.SEAT_AVAILABILITY_URL }}
+            TRAIN_MANAGEMENT_URL=${{ secrets.TRAIN_MANAGEMENT_URL }}
