@@ -3,7 +3,9 @@ const SeatInventory = require('../models/SeatInventory');
 
 const kafkaConfig = {
   clientId: 'seat-availability-service',
-  brokers: [(process.env.KAFKA_BROKER || 'localhost:9092')],
+  brokers: (process.env.KAFKA_BROKER || 'localhost:9092').split(','),
+  connectionTimeout: 10000,
+  authenticationTimeout: 10000,
   retry: { initialRetryTime: 300, retries: 5 },
 };
 
