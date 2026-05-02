@@ -54,6 +54,8 @@ export default function SearchClient() {
             scheduleId,
             id: trainNumber || scheduleId,
             name: trainInfo.name || schedule.name || "Train Service",
+            origin: schedule.origin || origin,
+            destination: schedule.destination || destination,
             departureTime: schedule.departureTime,
             arrivalTime: schedule.arrivalTime,
             price,
@@ -137,7 +139,7 @@ export default function SearchClient() {
                   <div className="flex flex-col md:flex-row justify-between mb-6 gap-6">
                     <div className="flex-1 space-y-1">
                       <div className="text-sm text-muted-foreground flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5"/> Origin</div>
-                      <div className="font-semibold text-lg">{origin}</div>
+                      <div className="font-semibold text-lg">{train.origin}</div>
                       <div className="text-sm font-medium flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400">
                         <Clock className="h-3.5 w-3.5"/>
                         Departure: {train.departureTime || "TBA"}
@@ -152,7 +154,7 @@ export default function SearchClient() {
 
                     <div className="flex-1 space-y-1 md:text-right">
                       <div className="text-sm text-muted-foreground flex items-center md:justify-end gap-1.5"><MapPin className="h-3.5 w-3.5"/> Destination</div>
-                      <div className="font-semibold text-lg">{destination}</div>
+                      <div className="font-semibold text-lg">{train.destination}</div>
                       <div className="text-sm font-medium flex items-center md:justify-end gap-1.5 text-indigo-600 dark:text-indigo-400">
                         <Clock className="h-3.5 w-3.5"/>
                         Arrival: {train.arrivalTime || "TBA"}
