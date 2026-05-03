@@ -110,5 +110,7 @@ jobs:
             NODE_ENV=production
             MONGODB_URI=${{ secrets.MONGODB_URI }}
             KAFKA_BROKER=${{ secrets.KAFKA_BROKER }}
+            KAFKA_USERNAME=${{ secrets.KAFKA_USERNAME }}
+            KAFKA_PASSWORD=${{ secrets.KAFKA_PASSWORD }}
             SEAT_AVAILABILITY_URL=${{ secrets.SEAT_AVAILABILITY_URL }}
             TRAIN_MANAGEMENT_URL=${{ secrets.TRAIN_MANAGEMENT_URL }}
