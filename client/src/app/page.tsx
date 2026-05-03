@@ -14,7 +14,7 @@ export default function Home() {
 
         <div className="relative z-20 w-full max-w-5xl mx-auto space-y-8">
           <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight text-white drop-shadow-md">
-            Your Journey <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400">Starts Here</span>
+            Your Journey <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-400 to-indigo-400">Starts Here</span>
           </h1>
           <p className="max-w-2xl mx-auto text-lg md:text-xl text-slate-300 drop-shadow">
             Experience the scenic beauty of Sri Lanka. Book your train tickets instantly with real-time availability and dynamic pricing.
