@@ -1,35 +1,45 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
-// Create a single reusable transporter
-const transporter = nodemailer.createTransport({
-  host: 'smtp.ethereal.email',
-  port: 587,
-  secure: false,
-  auth: {
-    user: 'annabelle87@ethereal.email',
-    pass: 'nJxxs9RfrRfWREfZT8'
-  }
-});
+let resend = null;
 
-// Verify connection on startup (non-fatal if email not configured)
-transporter.verify((err) => {
-  if (err) {
-    console.warn('[notification] Email transporter not configured:', err.message);
-  } else {
-    console.log('[notification] Email transporter ready');
+function getResendClient() {
+  if (!resend) {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+      throw new Error('[notification] RESEND_API_KEY environment variable is not set');
+    }
+    resend = new Resend(apiKey);
   }
-});
+  return resend;
+}
+
+// Sender address — on free plan, use Resend's shared domain
+const FROM_ADDRESS = 'Train Booking System <onboarding@resend.dev>';
 
 /**
  * Send a booking confirmation email
+ * @param {Object} booking
+ * @param {string} booking.bookingReference
+ * @param {string} booking.contactEmail
+ * @param {string} booking.origin
+ * @param {string} booking.destination
+ * @param {string|Date} booking.journeyDate
+ * @param {string} booking.seatClass
+ * @param {number} booking.totalAmount
+ * @param {Array<{name: string, seatNumber: string}>} booking.passengers
  */
 async function sendBookingConfirmation(booking) {
+  if (!booking.contactEmail) {
+    throw new Error('[notification] booking.contactEmail is missing');
+  }
+
   const passengerList = booking.passengers
-    .map(p => `  • ${p.name} — Seat ${p.seatNumber}`)
+    .map((p) => `  • ${p.name} — Seat ${p.seatNumber}`)
     .join('\n');
 
-  const mailOptions = {
-    from: `"Train Booking System" <${process.env.EMAIL_USER}>`,
+  const resendClient = getResendClient();
+  const { data, error } = await resendClient.emails.send({
+    from: FROM_ADDRESS,
     to: booking.contactEmail,
     subject: `Booking Confirmed — ${booking.bookingReference}`,
     text: `
@@ -63,21 +73,38 @@ Thank you for travelling with us.
     <tr><td style="padding:8px;background:#f5f5f5;font-weight:bold">Total</td><td style="padding:8px">LKR ${booking.totalAmount.toFixed(2)}</td></tr>
   </table>
   <h3>Passengers</h3>
-  <ul>${booking.passengers.map(p => `<li>${p.name} — Seat <strong>${p.seatNumber}</strong></li>`).join('')}</ul>
+  <ul>${booking.passengers.map((p) => `<li>${p.name} — Seat <strong>${p.seatNumber}</strong></li>`).join('')}</ul>
   <p style="color:#666;font-size:13px">Please arrive at the station 30 minutes before departure.</p>
   <p style="color:#666;font-size:13px">— Train Booking System</p>
 </div>`,
-  };
+  });
 
-  return transporter.sendMail(mailOptions);
+  if (error) {
+    console.error('[notification] Failed to send confirmation email:', error.message);
+    throw error;
+  }
+
+  console.log('[notification] Confirmation email sent, id:', data.id);
+  return data;
 }
 
 /**
  * Send a booking cancellation email
+ * @param {Object} booking
+ * @param {string} booking.bookingReference
+ * @param {string} booking.contactEmail
+ * @param {string} booking.origin
+ * @param {string} booking.destination
+ * @param {number} booking.totalAmount
  */
 async function sendCancellationNotice(booking) {
-  const mailOptions = {
-    from: `"Train Booking System" <${process.env.EMAIL_USER}>`,
+  if (!booking.contactEmail) {
+    throw new Error('[notification] booking.contactEmail is missing');
+  }
+
+  const resendClient = getResendClient();
+  const { data, error } = await resendClient.emails.send({
+    from: FROM_ADDRESS,
     to: booking.contactEmail,
     subject: `Booking Cancelled — ${booking.bookingReference}`,
     text: `
@@ -93,9 +120,15 @@ Refund of LKR ${booking.totalAmount.toFixed(2)} will be processed within 5-7 bus
   <p>A refund of <strong>LKR ${booking.totalAmount.toFixed(2)}</strong> will be processed within 5–7 business days.</p>
   <p style="color:#666;font-size:13px">— Train Booking System</p>
 </div>`,
-  };
+  });
 
-  return transporter.sendMail(mailOptions);
+  if (error) {
+    console.error('[notification] Failed to send cancellation email:', error.message);
+    throw error;
+  }
+
+  console.log('[notification] Cancellation email sent, id:', data.id);
+  return data;
 }
 
 module.exports = { sendBookingConfirmation, sendCancellationNotice };

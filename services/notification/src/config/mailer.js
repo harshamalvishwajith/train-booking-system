@@ -1,6 +1,17 @@
 const { Resend } = require('resend');
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+let resend = null;
+
+function getResendClient() {
+  if (!resend) {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+      throw new Error('[notification] RESEND_API_KEY environment variable is not set');
+    }
+    resend = new Resend(apiKey);
+  }
+  return resend;
+}
 
 // Sender address — on free plan, use Resend's shared domain
 const FROM_ADDRESS = 'Train Booking System <onboarding@resend.dev>';
@@ -26,7 +37,8 @@ async function sendBookingConfirmation(booking) {
     .map((p) => `  • ${p.name} — Seat ${p.seatNumber}`)
     .join('\n');
 
-  const { data, error } = await resend.emails.send({
+  const resendClient = getResendClient();
+  const { data, error } = await resendClient.emails.send({
     from: FROM_ADDRESS,
     to: booking.contactEmail,
     subject: `Booking Confirmed — ${booking.bookingReference}`,
@@ -90,7 +102,8 @@ async function sendCancellationNotice(booking) {
     throw new Error('[notification] booking.contactEmail is missing');
   }
 
-  const { data, error } = await resend.emails.send({
+  const resendClient = getResendClient();
+  const { data, error } = await resendClient.emails.send({
     from: FROM_ADDRESS,
     to: booking.contactEmail,
     subject: `Booking Cancelled — ${booking.bookingReference}`,

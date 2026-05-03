@@ -126,6 +126,7 @@ services:
       KAFKA_BROKER: kafka:29092
       EMAIL_USER: ${EMAIL_USER:-noreply@trainbooking.com}
       EMAIL_PASS: ${EMAIL_PASS:-changeme}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
       NODE_ENV: development
     depends_on:
       mongodb:
